@@ -24,6 +24,7 @@ export default class JASSUB extends EventTarget {
    * @param {String} [options.legacyWorkerUrl='jassub-worker-legacy.js'] The URL of the legacy worker. Only loaded if the browser doesn't support WASM.
    * @param {String} [options.subUrl=options.subContent] The URL of the subtitle file to play.
    * @param {String} [options.subContent=options.subUrl] The content of the subtitle file to play.
+   * @param {String} [options.publicPath=options.publicPath] The public path for the worker to load WASM and other assets from.
    * @param {String[]|Uint8Array[]} [options.fonts] An array of links or Uint8Arrays to the fonts used in the subtitle. If Uint8Array is used the array is copied, not referenced. This forces all the fonts in this array to be loaded by the renderer, regardless of if they are used.
    * @param {Object} [options.availableFonts={'liberation sans': './default.woff2'}] Object with all available fonts - Key is font family in lower case, value is link or Uint8Array: { arial: '/font1.ttf' }. These fonts are selectively loaded if detected as used in the current subtitle track.
    * @param {String} [options.fallbackFont='liberation sans'] The font family key of the fallback font in availableFonts to use if the other font for the style is missing special glyphs or unicode.
@@ -94,6 +95,7 @@ export default class JASSUB extends EventTarget {
       blendMode,
       subUrl: options.subUrl,
       subContent: options.subContent || null,
+      publicPath: options.publicPath || null,
       fonts: options.fonts || [],
       availableFonts: options.availableFonts || { 'liberation sans': './default.woff2' },
       fallbackFont: options.fallbackFont || 'liberation sans',

@@ -1,28 +1,10 @@
-/* global Module, HEAPU8, readAsync, read_, calledMain, addRunDependency, removeRunDependency, buffer */
+// @ts-ignore
+import WASMModule from 'jassub'
+
+/* global Module, HEAPU8, readAsync, read_, calledRun, addRunDependency, removeRunDependency, buffer */
 
 const encoder = new TextEncoder()
 const textByteLength = (input) => encoder.encode(input).buffer.byteLength
-
-Module.onRuntimeInitialized = () => {
-  self.jassubObj = new Module.JASSUB()
-
-  self.jassubObj.initLibrary(self.width, self.height, self.fallbackFont || null)
-
-  if (self.fallbackFont) self.findAvailableFonts(self.fallbackFont)
-
-  if (!self.subContent) self.subContent = read_(self.subUrl)
-
-  self.processAvailableFonts(self.subContent)
-
-  for (const font of self.fontFiles || []) self.asyncWrite(font)
-
-  self.jassubObj.createTrackMem(self.subContent, textByteLength(self.subContent))
-  self.jassubObj.setDropAnimations(self.dropAllAnimations)
-
-  if (self.libassMemoryLimit > 0 || self.libassGlyphLimit > 0) {
-    self.jassubObj.setMemoryLimits(self.libassGlyphLimit, self.libassMemoryLimit)
-  }
-}
 
 self.out = function (text) {
   if (text === 'libass: No usable fontconfig configuration file found, using fallback.') {
@@ -232,7 +214,7 @@ self.processRender = (result) => {
     for (let image = result; image.ptr !== 0; image = image.next) {
       if (image.image) {
         images.push({ w: image.w, h: image.h, x: image.x, y: image.y })
-        promises.push(createImageBitmap(new ImageData(HEAPU8C.subarray(image.image, image.image + image.w * image.h * 4), image.w, image.h)))
+        promises.push(createImageBitmap(new ImageData(new Uint8ClampedArray(HEAPU8).subarray(image.image, image.image + image.w * image.h * 4), image.w, image.h)))
       }
     }
     Promise.all(promises).then(bitmaps => {
@@ -302,7 +284,7 @@ self.paintImages = (data) => {
         } else {
           self.bufferCanvas.width = image.w
           self.bufferCanvas.height = image.h
-          self.bufferCtx.putImageData(new ImageData(HEAPU8C.subarray(image.image, image.image + image.w * image.h * 4), image.w, image.h), 0, 0)
+          self.bufferCtx.putImageData(new ImageData(new Uint8ClampedArray(HEAPU8).subarray(image.image, image.image + image.w * image.h * 4), image.w, image.h), 0, 0)
           self.offscreenCanvasCtx.drawImage(self.bufferCanvas, image.x, image.y)
         }
       }
@@ -411,7 +393,6 @@ self.requestAnimationFrame = (() => {
 // Frame throttling
 
 // Wait to start running until we receive some info from the client
-addRunDependency('worker-init')
 
 // buffer messages until the program starts to run
 
@@ -419,7 +400,7 @@ let messageBuffer = null
 let messageResenderTimeout = null
 
 function messageResender () {
-  if (calledMain) {
+  if (globalThis.Module?.calledRun) {
     if (messageBuffer && messageBuffer.length > 0) {
       messageResenderTimeout = null
       messageBuffer.forEach(message => {
@@ -440,7 +421,8 @@ function _applyKeys (input, output) {
   }
 }
 
-self.init = data => {
+self.init = async data => {
+  self.publicPath = data.publicPath
   self.width = data.width
   self.height = data.height
   self.subUrl = data.subUrl
@@ -465,7 +447,29 @@ self.init = data => {
   self.libassMemoryLimit = data.libassMemoryLimit || self.libassMemoryLimit
   self.libassGlyphLimit = data.libassGlyphLimit || 0
   self.useLocalFonts = data.useLocalFonts
-  removeRunDependency('worker-init')
+
+  globalThis.Module = await WASMModule({
+    locateFile: (path) => `${publicPath}${path.replace('/dist', '')}`
+  })
+  self.jassubObj = new globalThis.Module.JASSUB()
+
+  self.jassubObj.initLibrary(self.width, self.height, self.fallbackFont || null)
+
+  if (self.fallbackFont) self.findAvailableFonts(self.fallbackFont)
+
+  if (!self.subContent) self.subContent = read_(self.subUrl)
+
+  self.processAvailableFonts(self.subContent)
+
+  for (const font of self.fontFiles || []) self.asyncWrite(font)
+
+  self.jassubObj.createTrackMem(self.subContent, textByteLength(self.subContent))
+  self.jassubObj.setDropAnimations(self.dropAllAnimations)
+
+  if (self.libassMemoryLimit > 0 || self.libassGlyphLimit > 0) {
+    self.jassubObj.setMemoryLimits(self.libassGlyphLimit, self.libassMemoryLimit)
+  }
+
   postMessage({
     target: 'ready'
   })
@@ -585,7 +589,7 @@ self.removeStyle = data => {
 }
 
 onmessage = message => {
-  if (!calledMain && !message.data.preMain) {
+  if (!globalThis.Module?.calledRun && !message.data.preMain) {
     if (!messageBuffer) {
       messageBuffer = []
       messageResenderTimeout = setTimeout(messageResender, 50)
@@ -593,7 +597,7 @@ onmessage = message => {
     messageBuffer.push(message)
     return
   }
-  if (calledMain && messageResenderTimeout) {
+  if (globalThis.Module?.calledRun && messageResenderTimeout) {
     clearTimeout(messageResenderTimeout)
     messageResender()
   }
@@ -604,13 +608,3 @@ onmessage = message => {
     throw new Error('Unknown event target ' + message.data.target)
   }
 }
-
-let HEAPU8C = null
-
-// patch EMS function to include Uint8Clamped, but call old function too
-self.updateGlobalBufferAndViews = (_super => {
-  return buf => {
-    _super(buf)
-    HEAPU8C = new Uint8ClampedArray(buf)
-  }
-})(self.updateGlobalBufferAndViews)

@@ -4,7 +4,7 @@
 BASE_DIR:=$(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 DIST_DIR:=$(BASE_DIR)dist/libraries
 
-export LDFLAGS = -O3 -s EVAL_CTORS=1 -flto -s ENVIRONMENT=worker -s NO_EXIT_RUNTIME=1
+export LDFLAGS = -O3 -flto -s ENVIRONMENT=worker -s NO_EXIT_RUNTIME=1
 export CFLAGS = -O3 -flto -s USE_PTHREADS=0
 export CXXFLAGS = $(CFLAGS)
 export PKG_CONFIG_PATH = $(DIST_DIR)/lib/pkgconfig
@@ -149,17 +149,16 @@ src/jassub-worker.bc: $(OCTP_DEPS) all-src
 all-src:
 	$(MAKE) -C src all
 
+# arguments: https://github.com/emscripten-core/emscripten/issues/18630
 # Dist Files https://github.com/emscripten-core/emscripten/blob/2.0.34/src/settings.js
 EMCC_COMMON_ARGS = \
 	$(LDFLAGS) \
 	-s ALLOW_MEMORY_GROWTH=1 \
 	-s FILESYSTEM=0 \
-	-s AUTO_JS_LIBRARIES=0 \
-	-s AUTO_NATIVE_LIBRARIES=0 \
-	-s HTML5_SUPPORT_DEFERRING_USER_SENSITIVE_REQUESTS=0 \
-	-s USE_SDL=0 \
-	-s INCOMING_MODULE_JS_API="['onRuntimeInitialized','print','printErr']" \
-	--no-heap-copy \
+	-s ENVIRONMENT=web \
+	-s LEGACY_RUNTIME=1 \
+	-s EXPORTED_FUNCTIONS="['_malloc', '_free']" \
+	-s INCOMING_MODULE_JS_API="['onRuntimeInitialized','print','printErr','locateFile','arguments']" \
 	-o $@ \
   -O3
 	# TODO: fix minimal runtime errors
@@ -177,24 +176,22 @@ dist: src/jassub-worker.bc dist/js/jassub-worker.js dist/js/jassub-worker-legacy
 
 dist/js/jassub-worker.js: src/jassub-worker.bc src/worker.js src/JASSUBInterface.js src/polyfill.js
 	mkdir -p dist/js
-	emcc src/jassub-worker.bc $(OCTP_DEPS) \
-	  --pre-js src/polyfill.js \
-		--post-js src/JASSUBInterface.js \
-		--post-js src/worker.js \
+	emcc --bind src/jassub-worker.bc $(OCTP_DEPS) \
+		-s MODULARIZE=1 \
 		-s WASM=1 \
 		$(EMCC_COMMON_ARGS)
 		
-dist/js/jassub-worker-legacy.js: src/jassub-worker.bc src/worker.js src/JASSUBInterface.js src/polyfill.js
-	mkdir -p dist/js
-	emcc src/jassub-worker.bc $(OCTP_DEPS) \
-	  --pre-js src/polyfill.js \
-		--post-js src/JASSUBInterface.js \
-		--post-js src/worker.js \
-		-s WASM=0 \
-		-s LEGACY_VM_SUPPORT=1 \
-		-s MIN_CHROME_VERSION=27 \
-		-s MIN_SAFARI_VERSION=60005 \
-		$(EMCC_COMMON_ARGS)
+# dist/js/jassub-worker-legacy.js: src/jassub-worker.bc src/worker.js src/JASSUBInterface.js src/polyfill.js
+# 	mkdir -p dist/js
+# 	emcc src/jassub-worker.bc $(OCTP_DEPS) \
+# 	  --pre-js src/polyfill.js \
+# 		--post-js src/JASSUBInterface.js \
+# 		--post-js src/worker.js \
+# 		-s WASM=0 \
+# 		-s LEGACY_VM_SUPPORT=1 \
+# 		-s MIN_CHROME_VERSION=27 \
+# 		-s MIN_SAFARI_VERSION=60005 \
+# 		$(EMCC_COMMON_ARGS)
 
 dist/js/jassub.js: dist/license/all src/jassub.js
 	mkdir -p dist/js

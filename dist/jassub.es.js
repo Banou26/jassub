@@ -1,5 +1,19 @@
 var __defProp = Object.defineProperty;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
 var __publicField = (obj, key, value) => {
   __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
   return value;
@@ -95,6 +109,7 @@ const _JASSUB = class extends EventTarget {
       blendMode,
       subUrl: options.subUrl,
       subContent: options.subContent || null,
+      publicPath: options.publicPath || null,
       fonts: options.fonts || [],
       availableFonts: options.availableFonts || { "liberation sans": "./default.woff2" },
       fallbackFont: options.fallbackFont || "liberation sans",
@@ -418,16 +433,14 @@ const _JASSUB = class extends EventTarget {
   }
   sendMessage(target, data = {}, transferable) {
     if (transferable) {
-      this._worker.postMessage({
+      this._worker.postMessage(__spreadValues({
         target,
-        transferable,
-        ...data
-      }, [...transferable]);
+        transferable
+      }, data), [...transferable]);
     } else {
-      this._worker.postMessage({
-        target,
-        ...data
-      });
+      this._worker.postMessage(__spreadValues({
+        target
+      }, data));
     }
   }
   _fetchFromWorker(workerOptions, callback) {

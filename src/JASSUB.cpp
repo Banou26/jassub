@@ -1,3 +1,5 @@
+
+
 /*
     JASSUB.js
 */
@@ -9,12 +11,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
-#else
-// make IDE happy
-#define emscripten_get_now() 0.0
-#endif
+#include <emscripten/bind.h>
+using namespace emscripten;
 
 int log_level = 3;
 
@@ -230,6 +229,7 @@ static bool _is_event_animated(ASS_Event *event, bool drop_animations) {
   return false;
 }
 
+extern "C" {
 class JASSUB {
 private:
   ReusableBuffer2D m_buffer;
@@ -596,3 +596,37 @@ int main(int argc, char *argv[]) {
 #ifdef __EMSCRIPTEN__
 #include "./JASSUBInterface.cpp"
 #endif
+
+  // Binding code
+  EMSCRIPTEN_BINDINGS(jassub) {
+    class_<JASSUB>("JASSUB")
+      .constructor()
+      .function("renderBlend", &JASSUB::renderBlend)
+      .function("setMemoryLimits", &JASSUB::setMemoryLimits)
+      .function("removeAllEvents", &JASSUB::removeAllEvents)
+      .function("removeStyle", &JASSUB::removeStyle)
+      .function("getStyleByName", &JASSUB::getStyleByName)
+      .function("getStyleCount", &JASSUB::getStyleCount)
+      .function("removeEvent", &JASSUB::removeEvent)
+      .function("allocEvent", &JASSUB::allocEvent)
+      .function("getEventCount", &JASSUB::getEventCount)
+      .function("setMargin", &JASSUB::setMargin)
+      .function("addFont", &JASSUB::addFont)
+      .function("reloadFonts", &JASSUB::reloadFonts)
+      .function("reloadLibrary", &JASSUB::reloadLibrary)
+      .function("quitLibrary", &JASSUB::quitLibrary)
+      .function("renderImage", &JASSUB::renderImage)
+      .function("decodeBitmap", &JASSUB::decodeBitmap)
+      .function("processImages", &JASSUB::processImages)
+      .function("getBufferSize", &JASSUB::getBufferSize)
+      .function("resizeCanvas", &JASSUB::resizeCanvas)
+      .function("removeTrack", &JASSUB::removeTrack)
+      .function("createTrackMem", &JASSUB::createTrackMem)
+      .function("initLibrary", &JASSUB::initLibrary)
+      .function("scanAnimations", &JASSUB::scanAnimations)
+      .function("setDropAnimations", &JASSUB::setDropAnimations)
+      .function("setLogLevel", &JASSUB::setLogLevel)
+      .function("allocStyle", &JASSUB::allocStyle);
+  }
+}
+
