@@ -155,7 +155,6 @@ EMCC_COMMON_ARGS = \
 	$(LDFLAGS) \
 	-s ALLOW_MEMORY_GROWTH=1 \
 	-s FILESYSTEM=0 \
-	-s ENVIRONMENT=web \
 	-s LEGACY_RUNTIME=1 \
 	-s EXPORTED_FUNCTIONS="['_malloc', '_free']" \
 	-s INCOMING_MODULE_JS_API="['onRuntimeInitialized','print','printErr','locateFile','arguments']" \
@@ -176,7 +175,7 @@ dist: src/jassub-worker.bc dist/js/jassub-worker.js dist/js/jassub-worker-legacy
 
 dist/js/jassub-worker.js: src/jassub-worker.bc src/worker.js src/JASSUBInterface.js src/polyfill.js
 	mkdir -p dist/js
-	emcc --bind src/jassub-worker.bc $(OCTP_DEPS) \
+	emcc src/jassub.cpp $(OCTP_DEPS) \
 		-s MODULARIZE=1 \
 		-s WASM=1 \
 		$(EMCC_COMMON_ARGS)
