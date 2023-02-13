@@ -8,13 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
-#else
-// make IDE happy
-#define emscripten_get_now() 0.0
-#endif
+#include <emscripten/bind.h>
 
 int log_level = 3;
 
@@ -282,7 +277,8 @@ public:
     scanned_events = i;
   }
 
-  void initLibrary(int frame_w, int frame_h, char *defaultFont) {
+  void initLibrary(int frame_w, int frame_h, std::string df) {
+    const char *defaultFont = df.c_str();
     if (strlen(defaultFont) >= sizeof(m_defaultFont)) {
       printf("defaultFont is too large!\n");
       exit(4);
@@ -310,9 +306,9 @@ public:
   }
 
   /* TRACK */
-  void createTrackMem(char *buf, unsigned long bufsize) {
+  void createTrackMem(std::string buf, unsigned long bufsize) {
     removeTrack();
-    track = ass_read_memory(ass_library, buf, (size_t)bufsize, NULL);
+    track = ass_read_memory(ass_library, buf.data(), (size_t)bufsize, NULL);
     if (!track) {
       fprintf(stderr, "jso: Failed to start a track\n");
       exit(4);
@@ -423,8 +419,8 @@ public:
     ass_set_fonts(ass_renderer, NULL, m_defaultFont, ASS_FONTPROVIDER_NONE, NULL, 1);
   }
 
-  void addFont(char *name, char *data, unsigned long data_size) {
-    ass_add_font(ass_library, name, data, (size_t)data_size);
+  void addFont(std::string name, int data, unsigned long data_size) {
+    ass_add_font(ass_library, name.c_str(), (char*)data, (size_t)data_size);
   }
 
   void setMargin(int top, int bottom, int left, int right) {
@@ -593,6 +589,41 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-#ifdef __EMSCRIPTEN__
-#include "./JASSUBInterface.cpp"
-#endif
+EMSCRIPTEN_BINDINGS(JASSUB) {
+  emscripten::class_<JASSUB>("JASSUB")
+    .constructor()
+    .function("setLogLevel", &JASSUB::setLogLevel)
+    .function("setDropAnimations", &JASSUB::setDropAnimations)
+    .function("initLibrary", &JASSUB::initLibrary)
+    .function("createTrackMem", &JASSUB::createTrackMem)
+    .function("removeTrack", &JASSUB::removeTrack)
+    .function("resizeCanvas", &JASSUB::resizeCanvas)
+    .function("quitLibrary", &JASSUB::quitLibrary)
+    .function("reloadLibrary", &JASSUB::reloadLibrary)
+    .function("addFont", &JASSUB::addFont)
+    .function("reloadFonts", &JASSUB::reloadFonts)
+    .function("setMargin", &JASSUB::setMargin)
+    .function("getEventCount", &JASSUB::getEventCount)
+    .function("allocEvent", &JASSUB::allocEvent)
+    .function("allocStyle", &JASSUB::allocStyle)
+    .function("removeEvent", &JASSUB::removeEvent)
+    .function("getStyleCount", &JASSUB::getStyleCount)
+    .function("getStyleByName", &JASSUB::getStyleByName, emscripten::allow_raw_pointers())
+    .function("removeStyle", &JASSUB::removeStyle)
+    .function("removeAllEvents", &JASSUB::removeAllEvents)
+    .function("setMemoryLimits", &JASSUB::setMemoryLimits)
+    .function("renderBlend", &JASSUB::renderBlend, emscripten::allow_raw_pointers())
+    .function("renderImage", &JASSUB::renderImage, emscripten::allow_raw_pointers())
+    ;
+  
+  emscripten::value_object<RenderResult>("RenderResult")
+    .field("changed", &RenderResult::changed)
+    .field("time", &RenderResult::time)
+    .field("x", &RenderResult::x)
+    .field("y", &RenderResult::y)
+    .field("w", &RenderResult::w)
+    .field("h", &RenderResult::h)
+    // .field("image", &RenderResult::image)
+    // .field("next", &RenderResult::next)
+    ;
+}

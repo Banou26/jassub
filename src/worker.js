@@ -1,4 +1,4 @@
-/* global Module, HEAPU8, readAsync, read_, calledMain, addRunDependency, removeRunDependency, buffer */
+/* global Module, HEAPU8, readAsync, read_, calledRun, addRunDependency, removeRunDependency, buffer */
 
 const encoder = new TextEncoder()
 const textByteLength = (input) => encoder.encode(input).buffer.byteLength
@@ -419,7 +419,7 @@ let messageBuffer = null
 let messageResenderTimeout = null
 
 function messageResender () {
-  if (calledMain) {
+  if (calledRun) {
     if (messageBuffer && messageBuffer.length > 0) {
       messageResenderTimeout = null
       messageBuffer.forEach(message => {
@@ -585,7 +585,7 @@ self.removeStyle = data => {
 }
 
 onmessage = message => {
-  if (!calledMain && !message.data.preMain) {
+  if (!calledRun && !message.data.preMain) {
     if (!messageBuffer) {
       messageBuffer = []
       messageResenderTimeout = setTimeout(messageResender, 50)
@@ -593,7 +593,7 @@ onmessage = message => {
     messageBuffer.push(message)
     return
   }
-  if (calledMain && messageResenderTimeout) {
+  if (calledRun && messageResenderTimeout) {
     clearTimeout(messageResenderTimeout)
     messageResender()
   }
