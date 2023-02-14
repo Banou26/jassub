@@ -20,4 +20,6 @@ src/JASSUBInterface.cpp
 src/JASSUBInterface.js
 dist/js
 dist/libraries
+# dist/libraries
 dist/license
+emscripten

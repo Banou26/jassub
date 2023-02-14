@@ -10,6 +10,9 @@
 #include <string.h>
 #include <emscripten.h>
 #include <emscripten/bind.h>
+#include <emscripten/val.h>
+
+using namespace emscripten;
 
 int log_level = 3;
 
@@ -94,11 +97,11 @@ const float MAX_UINT8_CAST = 255.9 / 255;
 #define CLAMP_UINT8(value) ((value > MIN_UINT8_CAST) ? ((value < MAX_UINT8_CAST) ? (int)(value * 255) : 255) : 0)
 
 typedef struct RenderResult {
-public:
   int changed;
   double time;
   int x, y, w, h;
-  unsigned char *image;
+  emscripten::val image;
+  // unsigned char *image;
   RenderResult *next;
 } RenderResult;
 
@@ -226,7 +229,7 @@ static bool _is_event_animated(ASS_Event *event, bool drop_animations) {
 }
 
 class JASSUB {
-private:
+public:
   ReusableBuffer2D m_buffer;
   RenderResult m_renderResult;
   bool drop_animations;
@@ -241,7 +244,6 @@ private:
 
   char m_defaultFont[256];
 
-public:
   ASS_Track *track;
   JASSUB() {
     status = 0;
@@ -358,7 +360,12 @@ public:
       result->h = h;
       result->x = img->dst_x;
       result->y = img->dst_y;
-      result->image = (uint8_t *)data;
+      result->image = emscripten::val(
+        emscripten::typed_memory_view(
+          datasize,
+          data
+        )
+      );
       if (tmp) {
         tmp->next = result;
       } else {
@@ -381,26 +388,37 @@ public:
     }
   }
 
-  RenderResult *renderImage(double time, int force) {
+  RenderResult renderImage(double time, int force) {
     m_renderResult.time = 0.0;
-    m_renderResult.image = NULL;
+    m_renderResult.image = emscripten::val::undefined();
     ASS_Image *img = ass_render_frame(ass_renderer, track, (int)(time * 1000), &m_renderResult.changed);
+
+    double start_decode_time = emscripten_get_now();
+
+    // RenderResult renderResult = {
+    //   .changed = m_renderResult.changed,
+    //   .time = emscripten_get_now() - start_decode_time,
+    //   .x = 0,
+    //   .y = 0,
+    //   .w = 0,
+    //   .h = 0,
+    //   image = emscripten::val::undefined(),
+    // };
 
     RenderResult *renderResult = NULL;
     if (img == NULL || (m_renderResult.changed == 0 && !force)) {
-      return &m_renderResult;
+      return m_renderResult;
     }
-    double start_decode_time = emscripten_get_now();
     int size = getBufferSize(img);
     char *rawbuffer = (char *)m_buffer.get_rawbuf(1, 1, size, true);
     if (rawbuffer == NULL) {
       fprintf(stderr, "jso: cannot allocate buffer for rendering\n");
-      return renderResult;
+      return *renderResult;
     }
     processImages(renderResult, img, rawbuffer);
     renderResult->time = emscripten_get_now() - start_decode_time;
     renderResult->changed = m_renderResult.changed;
-    return renderResult;
+    return *renderResult;
   }
 
   void quitLibrary() {
@@ -468,13 +486,13 @@ public:
     ass_set_cache_limits(ass_renderer, glyph_limit, bitmap_cache_limit);
   }
 
-  RenderResult *renderBlend(double tm, int force) {
+  RenderResult renderBlend(double tm, int force) {
     m_renderResult.time = 0.0;
-    m_renderResult.image = NULL;
+    m_renderResult.image = emscripten::val::undefined();
 
     ASS_Image *img = ass_render_frame(ass_renderer, track, (int)(tm * 1000), &m_renderResult.changed);
     if (img == NULL || (m_renderResult.changed == 0 && !force)) {
-      return &m_renderResult;
+      return m_renderResult;
     }
 
     double start_blend_time = emscripten_get_now();
@@ -502,14 +520,14 @@ public:
 
     if (width == 0 || height == 0) {
       // all images are empty
-      return &m_renderResult;
+      return m_renderResult;
     }
 
     // make float buffer for blending
     float *buf = (float *)m_buffer.get_rawbuf(width, height, sizeof(float) * 4, true);
     if (buf == NULL) {
       fprintf(stderr, "jso: cannot allocate buffer for blending\n");
-      return &m_renderResult;
+      return m_renderResult;
     }
 
     // blend things in
@@ -580,8 +598,14 @@ public:
     m_renderResult.w = width;
     m_renderResult.h = height;
     m_renderResult.time = emscripten_get_now() - start_blend_time;
-    m_renderResult.image = (unsigned char *)result;
-    return &m_renderResult;
+    unsigned int datasize = sizeof(uint32_t) * width * height;
+    m_renderResult.image = emscripten::val(
+      emscripten::typed_memory_view(
+        datasize,
+        result
+      )
+    );
+    return m_renderResult;
   }
 };
 
@@ -612,10 +636,10 @@ EMSCRIPTEN_BINDINGS(JASSUB) {
     .function("removeStyle", &JASSUB::removeStyle)
     .function("removeAllEvents", &JASSUB::removeAllEvents)
     .function("setMemoryLimits", &JASSUB::setMemoryLimits)
-    .function("renderBlend", &JASSUB::renderBlend, emscripten::allow_raw_pointers())
-    .function("renderImage", &JASSUB::renderImage, emscripten::allow_raw_pointers())
+    .function("renderBlend", &JASSUB::renderBlend)
+    .function("renderImage", &JASSUB::renderImage)
     ;
-  
+
   emscripten::value_object<RenderResult>("RenderResult")
     .field("changed", &RenderResult::changed)
     .field("time", &RenderResult::time)
@@ -623,7 +647,7 @@ EMSCRIPTEN_BINDINGS(JASSUB) {
     .field("y", &RenderResult::y)
     .field("w", &RenderResult::w)
     .field("h", &RenderResult::h)
-    // .field("image", &RenderResult::image)
+    .field("image", &RenderResult::image)
     // .field("next", &RenderResult::next)
     ;
 }
