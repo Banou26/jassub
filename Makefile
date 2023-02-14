@@ -4,8 +4,8 @@
 BASE_DIR:=$(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 DIST_DIR:=$(BASE_DIR)dist/libraries
 
-export LDFLAGS = -O3 -s EVAL_CTORS=1 -flto -s ENVIRONMENT=worker -s NO_EXIT_RUNTIME=1
-export CFLAGS = -O3 -flto -s USE_PTHREADS=0
+export LDFLAGS = -O3 -s EVAL_CTORS=2 -flto -s ENVIRONMENT=worker -s NO_EXIT_RUNTIME=1 -fno-exceptions
+export CFLAGS = -O3 -flto -s USE_PTHREADS=0 -fno-rtti -fno-exceptions
 export CXXFLAGS = $(CFLAGS)
 export PKG_CONFIG_PATH = $(DIST_DIR)/lib/pkgconfig
 export EM_PKG_CONFIG_PATH = $(PKG_CONFIG_PATH)
@@ -149,25 +149,30 @@ OCTP_DEPS = \
 # all-src:
 # 	$(MAKE) -C src all
 
-# Dist Files https://github.com/emscripten-core/emscripten/blob/2.0.34/src/settings.js
+# Dist Files https://github.com/emscripten-core/emscripten/blob/3.1.24/src/settings.js
 EMCC_COMMON_ARGS = \
 	$(LDFLAGS) \
 	-s ALLOW_MEMORY_GROWTH=1 \
 	-s FILESYSTEM=0 \
+	-s EVAL_CTORS=2 \
+	-s TEXTDECODER=2 \
 	-s AUTO_JS_LIBRARIES=0 \
 	-s AUTO_NATIVE_LIBRARIES=0 \
 	-s HTML5_SUPPORT_DEFERRING_USER_SENSITIVE_REQUESTS=0 \
 	-s USE_SDL=0 \
-	-s LEGACY_RUNTIME=1 \
-	-s EXPORTED_FUNCTIONS="['_malloc', '_free']" \
-	-s INCOMING_MODULE_JS_API="['onRuntimeInitialized','print','printErr']" \
+	-s INVOKE_RUN=0 \
+	-s STRICT_JS=1 \
+	-s DISABLE_EXCEPTION_CATCHING=1 \
+	-s EXPORTED_FUNCTIONS="['_malloc']" \
+	-s MINIMAL_RUNTIME=1 \
+	-s MINIMAL_RUNTIME_STREAMING_WASM_INSTANTIATION=1 \
+	-s INCOMING_MODULE_JS_API="[]" \
 	--no-heap-copy \
+	-flto \
+	-fno-exceptions \
 	-o $@ \
   -O3
-	# TODO: fix minimal runtime errors
-	# -s MINIMAL_RUNTIME=1 \
 	# -s STRICT=1 \
-	# -s MINIMAL_RUNTIME_STREAMING_WASM_COMPILATION=1 \
   #--js-opts 0 -O0 -gsource-map 
 	#--js-opts 0 -O0 -g3 
 	#--closure 1 \
@@ -182,7 +187,7 @@ dist/js/jassub-worker.js: src/JASSUB.cpp src/worker.js src/polyfill.js
 	mkdir -p dist/js
 	emcc src/JASSUB.cpp $(OCTP_DEPS) \
 	  --pre-js src/polyfill.js \
-		--post-js src/worker.js \
+		--pre-js src/worker.js \
 		-s WASM=1 \
 		-lembind \
 		$(EMCC_COMMON_ARGS)

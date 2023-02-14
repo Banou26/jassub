@@ -1,12 +1,32 @@
-/* global Module, HEAPU8, readAsync, read_, calledRun, addRunDependency, removeRunDependency, buffer */
+/* global Module, HEAPU8, _malloc, buffer */
+const read_ = (url, ab) => {
+  const xhr = new XMLHttpRequest()
+  xhr.open('GET', url, false)
+  xhr.responseType = ab ? 'arraybuffer' : 'text'
+  xhr.send(null)
+  return xhr.response
+}
+const readAsync = (url, onload, onerror) => {
+  const xhr = new XMLHttpRequest()
+  xhr.open('GET', url, true)
+  xhr.responseType = 'arraybuffer'
+  xhr.onload = () => {
+    if ((xhr.status === 200 || xhr.status === 0) && xhr.response) {
+      onload(xhr.response)
+      return
+    }
+    onerror()
+  }
+  xhr.onerror = onerror
+  xhr.send(null)
+}
+// eslint-disable-next-line no-global-assign
+Module = {
+  wasm: !WebAssembly.instantiateStreaming && read_('jassub-worker.wasm', true)
+}
 
-const encoder = new TextEncoder()
-const textByteLength = (input) => encoder.encode(input).buffer.byteLength
-
-Module.onRuntimeInitialized = () => {
-  self.jassubObj = new Module.JASSUB()
-
-  self.jassubObj.initLibrary(self.width, self.height, self.fallbackFont || null)
+self.ready = () => {
+  self.jassubObj = new Module.JASSUB(self.width, self.height, self.fallbackFont || null)
 
   if (self.fallbackFont) self.findAvailableFonts(self.fallbackFont)
 
@@ -16,7 +36,7 @@ Module.onRuntimeInitialized = () => {
 
   for (const font of self.fontFiles || []) self.asyncWrite(font)
 
-  self.jassubObj.createTrackMem(self.subContent, textByteLength(self.subContent))
+  self.jassubObj.createTrackMem(self.subContent)
   self.jassubObj.setDropAnimations(self.dropAllAnimations)
 
   if (self.libassMemoryLimit > 0 || self.libassGlyphLimit > 0) {
@@ -24,14 +44,14 @@ Module.onRuntimeInitialized = () => {
   }
 }
 
-self.out = function (text) {
+self.out = text => {
   if (text === 'libass: No usable fontconfig configuration file found, using fallback.') {
     console.debug(text)
   } else {
     console.log(text)
   }
 }
-self.err = function (text) {
+self.err = text => {
   if (text === 'Fontconfig error: Cannot load default config file: No such file: (null)') {
     console.debug(text)
   } else {
@@ -94,7 +114,7 @@ self.asyncWrite = (font) => {
 
 // TODO: this should re-draw last frame!
 self.allocFont = (uint8) => {
-  const ptr = Module._malloc(uint8.byteLength)
+  const ptr = _malloc(uint8.byteLength)
   HEAPU8.set(uint8, ptr)
   self.jassubObj.addFont('font-' + (self.fontId++), ptr, uint8.byteLength)
   self.jassubObj.reloadFonts()
@@ -130,7 +150,7 @@ self.setTrack = (data) => {
   self.subContent = data.content
 
   // Tell libass to render the new track
-  self.jassubObj.createTrackMem(self.subContent, textByteLength(self.subContent))
+  self.jassubObj.createTrackMem(self.subContent)
   self.renderLoop()
 }
 
@@ -208,15 +228,19 @@ self.renderImageData = (time, force) => {
   let result = null
   if (self.blendMode === 'wasm') {
     result = self.jassubObj.renderBlend(time, force)
-    result.times = {
-      renderTime: Date.now() - renderStartTime - result.time | 0,
-      blendTime: result.time | 0
+    if (result) {
+      result.times = {
+        renderTime: Date.now() - renderStartTime - (result && result.time) | 0,
+        blendTime: (result && result.time) | 0
+      }
     }
   } else {
     result = self.jassubObj.renderImage(time, force)
-    result.times = {
-      renderTime: Date.now() - renderStartTime - result.time | 0,
-      cppDecodeTime: result.time | 0
+    if (result) {
+      result.times = {
+        renderTime: Date.now() - renderStartTime - (result && result.time) | 0,
+        cppDecodeTime: (result && result.time) | 0
+      }
     }
   }
   return result
@@ -229,7 +253,7 @@ self.processRender = (result) => {
   // use callback to not rely on async/await
   if (asyncRender) {
     const promises = []
-    for (let image = result; image.ptr !== 0; image = image.next) {
+    for (let image = result; image.changed; image = image.next) {
       if (image.image) {
         images.push({ w: image.w, h: image.h, x: image.x, y: image.y })
         promises.push(createImageBitmap(new ImageData(HEAPU8C.subarray(image.image, image.image + image.w * image.h * 4), image.w, image.h)))
@@ -332,7 +356,7 @@ self.paintImages = (data) => {
  * Parse the content of an .ass file.
  * @param {!string} content the content of the file
  */
-function parseAss (content) {
+const parseAss = content => {
   let m, format, lastPart, parts, key, value, tmp, i, j, body
   const sections = []
   const lines = content.split(/[\r\n]+/g)
@@ -387,7 +411,7 @@ function parseAss (content) {
   }
 
   return sections
-};
+}
 
 self.requestAnimationFrame = (() => {
   // similar to Browser.requestAnimationFrame
@@ -410,16 +434,13 @@ self.requestAnimationFrame = (() => {
 
 // Frame throttling
 
-// Wait to start running until we receive some info from the client
-addRunDependency('worker-init')
-
 // buffer messages until the program starts to run
 
 let messageBuffer = null
 let messageResenderTimeout = null
 
-function messageResender () {
-  if (calledRun) {
+const messageResender = () => {
+  if (self.jassubObj) {
     if (messageBuffer && messageBuffer.length > 0) {
       messageResenderTimeout = null
       messageBuffer.forEach(message => {
@@ -432,7 +453,7 @@ function messageResender () {
   }
 }
 
-function _applyKeys (input, output) {
+const _applyKeys = (input, output) => {
   const vargs = Object.keys(input)
 
   for (let i = 0; i < vargs.length; i++) {
@@ -465,7 +486,6 @@ self.init = data => {
   self.libassMemoryLimit = data.libassMemoryLimit || self.libassMemoryLimit
   self.libassGlyphLimit = data.libassGlyphLimit || 0
   self.useLocalFonts = data.useLocalFonts
-  removeRunDependency('worker-init')
   postMessage({
     target: 'ready'
   })
@@ -497,26 +517,14 @@ self.destroy = () => {
 }
 
 self.createEvent = data => {
-  _applyKeys(data.event, self.jassubObj.track.get_events(self.jassubObj.allocEvent()))
+  _applyKeys(data.event, self.jassubObj.getEvent(self.jassubObj.allocEvent()))
 }
 
 self.getEvents = () => {
   const events = []
   for (let i = 0; i < self.jassubObj.getEventCount(); i++) {
-    const evntPtr = self.jassubObj.track.get_events(i)
-    events.push({
-      Start: evntPtr.get_Start(),
-      Duration: evntPtr.get_Duration(),
-      ReadOrder: evntPtr.get_ReadOrder(),
-      Layer: evntPtr.get_Layer(),
-      Style: evntPtr.get_Style(),
-      Name: evntPtr.get_Name(),
-      MarginL: evntPtr.get_MarginL(),
-      MarginR: evntPtr.get_MarginR(),
-      MarginV: evntPtr.get_MarginV(),
-      Effect: evntPtr.get_Effect(),
-      Text: evntPtr.get_Text()
-    })
+    const { Start, Duration, ReadOrder, Layer, Style, MarginL, MarginR, MarginV, Name, Text, Effect } = self.jassubObj.getEvent(i)
+    events.push({ Start, Duration, ReadOrder, Layer, Style, MarginL, MarginR, MarginV, Name, Text, Effect })
   }
   postMessage({
     target: 'getEvents',
@@ -525,7 +533,7 @@ self.getEvents = () => {
 }
 
 self.setEvent = data => {
-  _applyKeys(data.event, self.jassubObj.track.get_events(data.index))
+  _applyKeys(data.event, self.jassubObj.getEvent(data.index))
 }
 
 self.removeEvent = data => {
@@ -533,41 +541,16 @@ self.removeEvent = data => {
 }
 
 self.createStyle = data => {
-  _applyKeys(data.style, self.jassubObj.track.get_styles(self.jassubObj.allocStyle()))
+  _applyKeys(data.style, self.jassubObj.getStyle(self.jassubObj.allocStyle()))
 }
 
 self.getStyles = () => {
   const styles = []
   for (let i = 0; i < self.jassubObj.getStyleCount(); i++) {
-    const stylPtr = self.jassubObj.track.get_styles(i)
-    styles.push({
-      Name: stylPtr.get_Name(),
-      FontName: stylPtr.get_FontName(),
-      FontSize: stylPtr.get_FontSize(),
-      PrimaryColour: stylPtr.get_PrimaryColour(),
-      SecondaryColour: stylPtr.get_SecondaryColour(),
-      OutlineColour: stylPtr.get_OutlineColour(),
-      BackColour: stylPtr.get_BackColour(),
-      Bold: stylPtr.get_Bold(),
-      Italic: stylPtr.get_Italic(),
-      Underline: stylPtr.get_Underline(),
-      StrikeOut: stylPtr.get_StrikeOut(),
-      ScaleX: stylPtr.get_ScaleX(),
-      ScaleY: stylPtr.get_ScaleY(),
-      Spacing: stylPtr.get_Spacing(),
-      Angle: stylPtr.get_Angle(),
-      BorderStyle: stylPtr.get_BorderStyle(),
-      Outline: stylPtr.get_Outline(),
-      Shadow: stylPtr.get_Shadow(),
-      Alignment: stylPtr.get_Alignment(),
-      MarginL: stylPtr.get_MarginL(),
-      MarginR: stylPtr.get_MarginR(),
-      MarginV: stylPtr.get_MarginV(),
-      Encoding: stylPtr.get_Encoding(),
-      treat_fontname_as_pattern: stylPtr.get_treat_fontname_as_pattern(),
-      Blur: stylPtr.get_Blur(),
-      Justify: stylPtr.get_Justify()
-    })
+    // eslint-disable-next-line camelcase
+    const { Name, FontName, FontSize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding, treat_fontname_as_pattern, Blur, Justify } = self.jassubObj.getStyle(i)
+    // eslint-disable-next-line camelcase
+    styles.push({ Name, FontName, FontSize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding, treat_fontname_as_pattern, Blur, Justify })
   }
   postMessage({
     target: 'getStyles',
@@ -577,7 +560,7 @@ self.getStyles = () => {
 }
 
 self.setStyle = data => {
-  _applyKeys(data.style, self.jassubObj.track.get_styles(data.index))
+  _applyKeys(data.style, self.jassubObj.getStyle(data.index))
 }
 
 self.removeStyle = data => {
@@ -585,7 +568,7 @@ self.removeStyle = data => {
 }
 
 onmessage = message => {
-  if (!calledRun && !message.data.preMain) {
+  if (!self.jassubObj && !message.data.preMain) {
     if (!messageBuffer) {
       messageBuffer = []
       messageResenderTimeout = setTimeout(messageResender, 50)
@@ -593,7 +576,7 @@ onmessage = message => {
     messageBuffer.push(message)
     return
   }
-  if (calledRun && messageResenderTimeout) {
+  if (self.jassubObj && messageResenderTimeout) {
     clearTimeout(messageResenderTimeout)
     messageResender()
   }

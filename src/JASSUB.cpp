@@ -95,10 +95,10 @@ const float MAX_UINT8_CAST = 255.9 / 255;
 
 typedef struct RenderResult {
 public:
-  int changed;
+  int changed = 0;
   double time;
   int x, y, w, h;
-  unsigned char *image;
+  uint32_t image;
   RenderResult *next;
 } RenderResult;
 
@@ -243,7 +243,7 @@ private:
 
 public:
   ASS_Track *track;
-  JASSUB() {
+  JASSUB(int frame_w, int frame_h, const std::string &df) {
     status = 0;
     ass_library = NULL;
     ass_renderer = NULL;
@@ -252,32 +252,7 @@ public:
     canvas_h = 0;
     drop_animations = false;
     scanned_events = 0;
-  }
 
-  void setLogLevel(int level) {
-    log_level = level;
-  }
-
-  void setDropAnimations(int value) {
-    drop_animations = !!value;
-    if (drop_animations)
-      scanAnimations(scanned_events);
-  }
-
-  /*
-   * \brief Scan events starting at index i for animations
-   * and discard animated tags when found.
-   * Note that once animated tags were dropped they cannot be restored.
-   * Updates the class member scanned_events to last scanned index.
-   */
-  void scanAnimations(int i) {
-    for (; i < track->n_events; i++) {
-      _is_event_animated(track->events + i, drop_animations);
-    }
-    scanned_events = i;
-  }
-
-  void initLibrary(int frame_w, int frame_h, std::string df) {
     const char *defaultFont = df.c_str();
     if (strlen(defaultFont) >= sizeof(m_defaultFont)) {
       printf("defaultFont is too large!\n");
@@ -305,10 +280,33 @@ public:
     m_buffer.clear();
   }
 
+  void setLogLevel(int level) {
+    log_level = level;
+  }
+
+  void setDropAnimations(int value) {
+    drop_animations = !!value;
+    if (drop_animations)
+      scanAnimations(scanned_events);
+  }
+
+  /*
+   * \brief Scan events starting at index i for animations
+   * and discard animated tags when found.
+   * Note that once animated tags were dropped they cannot be restored.
+   * Updates the class member scanned_events to last scanned index.
+   */
+  void scanAnimations(int i) {
+    for (; i < track->n_events; i++) {
+      _is_event_animated(track->events + i, drop_animations);
+    }
+    scanned_events = i;
+  }
+
   /* TRACK */
-  void createTrackMem(std::string buf, unsigned long bufsize) {
+  void createTrackMem(std::string buf) {
     removeTrack();
-    track = ass_read_memory(ass_library, buf.data(), (size_t)bufsize, NULL);
+    track = ass_read_memory(ass_library, buf.data(), buf.size(), NULL);
     if (!track) {
       fprintf(stderr, "jso: Failed to start a track\n");
       exit(4);
@@ -358,7 +356,8 @@ public:
       result->h = h;
       result->x = img->dst_x;
       result->y = img->dst_y;
-      result->image = (uint8_t *)data;
+      result->changed = 1;
+      result->image = (uint32_t)data;
       if (tmp) {
         tmp->next = result;
       } else {
@@ -386,7 +385,7 @@ public:
     m_renderResult.image = NULL;
     ASS_Image *img = ass_render_frame(ass_renderer, track, (int)(time * 1000), &m_renderResult.changed);
 
-    RenderResult *renderResult = NULL;
+    RenderResult *renderResult;
     if (img == NULL || (m_renderResult.changed == 0 && !force)) {
       return &m_renderResult;
     }
@@ -409,17 +408,12 @@ public:
     ass_library_done(ass_library);
     m_buffer.clear();
   }
-  void reloadLibrary() {
-    quitLibrary();
-
-    initLibrary(canvas_w, canvas_h, m_defaultFont);
-  }
 
   void reloadFonts() {
     ass_set_fonts(ass_renderer, NULL, m_defaultFont, ASS_FONTPROVIDER_NONE, NULL, 1);
   }
 
-  void addFont(std::string name, int data, unsigned long data_size) {
+  void addFont(const std::string &name, int data, unsigned long data_size) {
     ass_add_font(ass_library, name.c_str(), (char*)data, (size_t)data_size);
   }
 
@@ -441,14 +435,6 @@ public:
 
   int getStyleCount() const {
     return track->n_styles;
-  }
-
-  int getStyleByName(const char *name) const {
-    for (int n = 0; n < track->n_styles; n++) {
-      if (track->styles[n].Name && strcmp(track->styles[n].Name, name) == 0)
-        return n;
-    }
-    return 0;
   }
 
   int allocStyle() {
@@ -580,26 +566,142 @@ public:
     m_renderResult.w = width;
     m_renderResult.h = height;
     m_renderResult.time = emscripten_get_now() - start_blend_time;
-    m_renderResult.image = (unsigned char *)result;
+    m_renderResult.image = (uint32_t)result;
     return &m_renderResult;
+  }
+
+  ASS_Event *getEvent(int i) {
+    return &track->events[i];
+  }
+
+  ASS_Style *getStyle(int i) {
+    return &track->styles[i];
   }
 };
 
-int main(int argc, char *argv[]) {
-  return 0;
+static uint32_t getDuration(const ASS_Event &evt) {
+  return (uint32_t)evt.Duration;
 }
 
+static void setDuration(ASS_Event &evt, const long ms) {
+  evt.Duration = ms;
+}
+
+static uint32_t getStart(const ASS_Event &evt) {
+  return (uint32_t)evt.Start;
+}
+
+static void setStart(ASS_Event &evt, const long ms) {
+  evt.Start = ms;
+}
+
+static std::string getEventName(const ASS_Event &evt) {
+  return evt.Name;
+}
+
+static void setEventName(ASS_Event &evt, const std::string &str){
+  evt.Name = (char *)str.c_str();
+}
+
+static std::string getText(const ASS_Event &evt) {
+  return evt.Text;
+}
+
+static void setText(ASS_Event &evt, const std::string &str){
+  evt.Text = (char *)str.c_str();
+}
+
+static std::string getEffect(const ASS_Event &evt) {
+  return evt.Effect;
+}
+
+static void setEffect(ASS_Event &evt, const std::string &str){
+  evt.Effect = (char *)str.c_str();
+}
+
+static std::string getStyleName(const ASS_Style &style) {
+  return style.Name;
+}
+
+static void setStyleName(ASS_Style &style, const std::string &str){
+  style.Name = (char *)str.c_str();
+}
+
+static std::string getFontName(const ASS_Style &style) {
+  return style.FontName;
+}
+
+static void setFontName(ASS_Style &style, const std::string &str){
+  style.FontName = (char *)str.c_str();
+}
+
+static RenderResult getNext(const RenderResult &res) {
+  return *res.next;
+}
+
+
 EMSCRIPTEN_BINDINGS(JASSUB) {
+  emscripten::register_vector<RenderResult>("vector<RenderResult>");
+
+  emscripten::class_<RenderResult>("RenderResult")
+    .property("time", &RenderResult::time)
+    .property("x", &RenderResult::x)
+    .property("y", &RenderResult::y)
+    .property("w", &RenderResult::w)
+    .property("h", &RenderResult::h)
+    .property("next", &getNext)
+    .property("changed", &RenderResult::changed)
+    .property("image", &RenderResult::image);
+
+  emscripten::class_<ASS_Style>("ASS_Style")
+    .property("Name", &getStyleName, &setStyleName)    
+    .property("FontName", &getFontName, &setFontName) 
+    .property("FontSize", &ASS_Style::FontSize)
+    .property("PrimaryColour", &ASS_Style::PrimaryColour)
+    .property("SecondaryColour", &ASS_Style::SecondaryColour)
+    .property("OutlineColour", &ASS_Style::OutlineColour)
+    .property("BackColour", &ASS_Style::BackColour)
+    .property("Bold", &ASS_Style::Bold)     
+    .property("Italic", &ASS_Style::Italic)   
+    .property("Underline", &ASS_Style::Underline) 
+    .property("StrikeOut", &ASS_Style::StrikeOut)
+    .property("ScaleX", &ASS_Style::ScaleX) 
+    .property("ScaleY", &ASS_Style::ScaleY) 
+    .property("Spacing", &ASS_Style::Spacing)
+    .property("Angle", &ASS_Style::Angle)
+    .property("BorderStyle", &ASS_Style::BorderStyle)
+    .property("Outline", &ASS_Style::Outline)
+    .property("Shadow", &ASS_Style::Shadow)
+    .property("Alignment", &ASS_Style::Alignment) 
+    .property("MarginL", &ASS_Style::MarginL)
+    .property("MarginR", &ASS_Style::MarginR)
+    .property("MarginV", &ASS_Style::MarginV)
+    .property("Encoding", &ASS_Style::Encoding)
+    .property("treat_fontname_as_pattern", &ASS_Style::treat_fontname_as_pattern) 
+    .property("Blur", &ASS_Style::Blur) 
+    .property("Justify", &ASS_Style::Justify);
+
+  emscripten::class_<ASS_Event>("ASS_Event")
+    .property("Start", &getStart, &setStart)
+    .property("Duration", &getDuration, &setDuration)
+    .property("Name", &getEventName, &setEventName)
+    .property("Effect", &getEffect, &setEffect)
+    .property("Text", &getText, &setText)
+    .property("ReadOrder", &ASS_Event::ReadOrder)
+    .property("Layer", &ASS_Event::Layer)
+    .property("Style", &ASS_Event::Style)
+    .property("MarginL", &ASS_Event::MarginL)
+    .property("MarginR", &ASS_Event::MarginR)
+    .property("MarginV", &ASS_Event::MarginV);
+
   emscripten::class_<JASSUB>("JASSUB")
-    .constructor()
+    .constructor<int, int, std::string>()
     .function("setLogLevel", &JASSUB::setLogLevel)
     .function("setDropAnimations", &JASSUB::setDropAnimations)
-    .function("initLibrary", &JASSUB::initLibrary)
     .function("createTrackMem", &JASSUB::createTrackMem)
     .function("removeTrack", &JASSUB::removeTrack)
     .function("resizeCanvas", &JASSUB::resizeCanvas)
     .function("quitLibrary", &JASSUB::quitLibrary)
-    .function("reloadLibrary", &JASSUB::reloadLibrary)
     .function("addFont", &JASSUB::addFont)
     .function("reloadFonts", &JASSUB::reloadFonts)
     .function("setMargin", &JASSUB::setMargin)
@@ -608,22 +710,11 @@ EMSCRIPTEN_BINDINGS(JASSUB) {
     .function("allocStyle", &JASSUB::allocStyle)
     .function("removeEvent", &JASSUB::removeEvent)
     .function("getStyleCount", &JASSUB::getStyleCount)
-    .function("getStyleByName", &JASSUB::getStyleByName, emscripten::allow_raw_pointers())
     .function("removeStyle", &JASSUB::removeStyle)
     .function("removeAllEvents", &JASSUB::removeAllEvents)
     .function("setMemoryLimits", &JASSUB::setMemoryLimits)
     .function("renderBlend", &JASSUB::renderBlend, emscripten::allow_raw_pointers())
     .function("renderImage", &JASSUB::renderImage, emscripten::allow_raw_pointers())
-    ;
-  
-  emscripten::value_object<RenderResult>("RenderResult")
-    .field("changed", &RenderResult::changed)
-    .field("time", &RenderResult::time)
-    .field("x", &RenderResult::x)
-    .field("y", &RenderResult::y)
-    .field("w", &RenderResult::w)
-    .field("h", &RenderResult::h)
-    // .field("image", &RenderResult::image)
-    // .field("next", &RenderResult::next)
-    ;
+    .function("getEvent", &JASSUB::getEvent, emscripten::allow_raw_pointers())
+    .function("getStyle", &JASSUB::getStyle, emscripten::allow_raw_pointers());
 }

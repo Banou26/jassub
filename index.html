@@ -27,7 +27,7 @@
         <button class="btn btn-primary my-10" type="button" id="playC">PlayPause</button><button class="btn btn-primary ml-10 my-10" type="button" id="fullC">Fullscreen</button><br>
         <div class="w-600" id="containerC">
           <video src="http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" 
-            muted loop class="w-full"></video>
+            muted loop class="w-full" controls></video>
         </div>
       </div>
     </div>
@@ -40,6 +40,8 @@
       video: document.querySelector('video'),
       subUrl: '/test.ass',
       workerUrl: './dist/js/jassub-worker.js',
+      debug: true,
+      offscreenRender: false,
       useLocalFonts: true,
       availableFonts: {
         'liberation sans': '/dist/default.woff2'
