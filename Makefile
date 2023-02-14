@@ -163,9 +163,8 @@ EMCC_COMMON_ARGS = \
 	-s STRICT_JS=1 \
 	-s DISABLE_EXCEPTION_CATCHING=1 \
 	-s EXPORTED_FUNCTIONS="['_malloc']" \
-	-s MINIMAL_RUNTIME=1 \
-	-s MINIMAL_RUNTIME_STREAMING_WASM_INSTANTIATION=1 \
-	-s INCOMING_MODULE_JS_API="[]" \
+	-s INCOMING_MODULE_JS_API="['locateFile']" \
+	-s MODULARIZE=1 \
 	--no-heap-copy \
 	-flto \
 	-fno-exceptions \

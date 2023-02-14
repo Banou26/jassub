@@ -1,3 +1,6 @@
+// @ts-ignore
+import WASMModule from 'jassub'
+
 /* global Module, HEAPU8, _malloc, buffer */
 const read_ = (url, ab) => {
   const xhr = new XMLHttpRequest()
@@ -18,10 +21,6 @@ const readAsync = (url, load, err) => {
   }
   xhr.onerror = err
   xhr.send(null)
-}
-// eslint-disable-next-line no-global-assign
-Module = {
-  wasm: !WebAssembly.instantiateStreaming && read_('jassub-worker.wasm', true)
 }
 
 // ran when WASM is compiled
@@ -90,8 +89,8 @@ const asyncWrite = font => {
 
 // TODO: this should re-draw last frame!
 const allocFont = uint8 => {
-  const ptr = _malloc(uint8.byteLength)
-  HEAPU8.set(uint8, ptr)
+  const ptr = Module._malloc(uint8.byteLength)
+  Module.HEAPU8.set(uint8, ptr)
   self.jassubObj.addFont('font-' + (fontId++), ptr, uint8.byteLength)
   self.jassubObj.reloadFonts()
 }
@@ -223,7 +222,7 @@ const render = (time, force) => {
       for (let image = result, i = 0; i < self.jassubObj.count; image = image.next, ++i) {
         if (image.image) {
           images.push({ w: image.w, h: image.h, x: image.x, y: image.y })
-          promises.push(createImageBitmap(new ImageData(HEAPU8C.subarray(image.image, image.image + image.w * image.h * 4), image.w, image.h)))
+          promises.push(createImageBitmap(new ImageData(new Uint8ClampedArray(Module.HEAPU8).subarray(image.image, image.image + image.w * image.h * 4), image.w, image.h)))
         }
       }
       Promise.all(promises).then(bitmaps => {
@@ -286,7 +285,7 @@ const paintImages = ({ times, images, decodeStartTime, buffers }) => {
         } else {
           self.bufferCanvas.width = image.w
           self.bufferCanvas.height = image.h
-          self.bufferCtx.putImageData(new ImageData(HEAPU8C.subarray(image.image, image.image + image.w * image.h * 4), image.w, image.h), 0, 0)
+          self.bufferCtx.putImageData(new ImageData(new Uint8ClampedArray(Module.HEAPU8).subarray(image.image, image.image + image.w * image.h * 4), image.w, image.h), 0, 0)
           offCanvasCtx.drawImage(self.bufferCanvas, image.x, image.y)
         }
       }
@@ -400,7 +399,8 @@ const _applyKeys = (input, output) => {
   }
 }
 
-self.init = data => {
+self.init = async data => {
+  self.publicPath = data.publicPath
   self.width = data.width
   self.height = data.height
   blendMode = data.blendMode
@@ -419,6 +419,11 @@ self.init = data => {
   useLocalFonts = data.useLocalFonts
 
   const fallbackFont = data.fallbackFont.toLowerCase()
+
+  globalThis.Module = await WASMModule({
+    locateFile: (path) => `${publicPath}${path.replace('/dist', '')}`
+  })
+
   self.jassubObj = new Module.JASSUB(self.width, self.height, fallbackFont || null)
 
   if (fallbackFont) findAvailableFonts(fallbackFont)
