@@ -39,13 +39,14 @@
     window.renderer = new JASSUB({
       video: document.querySelector('video'),
       subUrl: '/test.ass',
-      workerUrl: './dist/js/jassub-worker.js',
+      workerUrl: './dist/jassub-worker.es.js',
       debug: true,
       offscreenRender: false,
       useLocalFonts: true,
       availableFonts: {
         'liberation sans': '/dist/default.woff2'
-      }
+      },
+      publicPath: '/dist/js/',
     })
   </script>
 </body>

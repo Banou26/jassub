@@ -21,3 +21,4 @@ src/JASSUBInterface.js
 dist/js
 dist/libraries
 dist/license
+emscripten
