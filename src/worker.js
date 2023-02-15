@@ -23,9 +23,6 @@ const readAsync = (url, load, err) => {
   xhr.send(null)
 }
 
-// ran when WASM is compiled
-self.ready = () => postMessage({ target: 'ready' })
-
 self.out = text => {
   if (text === 'libass: No usable fontconfig configuration file found, using fallback.') {
     console.debug(text)
@@ -399,7 +396,18 @@ const _applyKeys = (input, output) => {
   }
 }
 
-self.init = async data => {
+let publicPath
+
+self.preInit = async (data) => {
+  publicPath = data.publicPath
+  globalThis.Module = await WASMModule({
+    locateFile: (path) => `${publicPath}${path.replace('/dist', '')}`
+  })
+  postMessage({ target: 'ready' })
+
+}
+
+self.init = data => {
   self.publicPath = data.publicPath
   self.width = data.width
   self.height = data.height
@@ -419,10 +427,6 @@ self.init = async data => {
   useLocalFonts = data.useLocalFonts
 
   const fallbackFont = data.fallbackFont.toLowerCase()
-
-  globalThis.Module = await WASMModule({
-    locateFile: (path) => `${publicPath}${path.replace('/dist', '')}`
-  })
 
   self.jassubObj = new Module.JASSUB(self.width, self.height, fallbackFont || null)
 
@@ -528,13 +532,3 @@ onmessage = ({ data }) => {
     throw new Error('Unknown event target ' + data.target)
   }
 }
-
-let HEAPU8C = null
-
-// patch EMS function to include Uint8Clamped, but call old function too
-self.updateGlobalBufferAndViews = (_super => {
-  return buf => {
-    _super(buf)
-    HEAPU8C = new Uint8ClampedArray(buf)
-  }
-})(self.updateGlobalBufferAndViews)

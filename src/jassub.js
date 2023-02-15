@@ -80,10 +80,11 @@ export default class JASSUB extends EventTarget {
     this.prescaleFactor = options.prescaleFactor || 1.0
     this.prescaleHeightLimit = options.prescaleHeightLimit || 1080
     this.maxRenderHeight = options.maxRenderHeight || 0 // 0 - no limit.
-
     this._worker = new Worker(JASSUB._supportsWebAssembly ? options.workerUrl || 'jassub-worker.js' : options.legacyWorkerUrl || 'jassub-worker-legacy.js')
     this._worker.onmessage = e => this._onmessage(e)
     this._worker.onerror = e => this._error(e)
+
+    this.sendMessage('preInit', { publicPath: options.publicPath || null })
 
     this._init = () => {
       if (this._destroyed) return

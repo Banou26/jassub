@@ -184,8 +184,6 @@ dist: dist/js/jassub-worker.js dist/js/jassub-worker-legacy.js
 dist/js/jassub-worker.js: src/JASSUB.cpp src/worker.js src/polyfill.js
 	mkdir -p dist/js
 	emcc src/JASSUB.cpp $(OCTP_DEPS) \
-	  --pre-js src/polyfill.js \
-		--pre-js src/worker.js \
 		-s EVAL_CTORS=2 \
 		-s TEXTDECODER=2 \
 		-s WASM=1 \
@@ -194,8 +192,6 @@ dist/js/jassub-worker.js: src/JASSUB.cpp src/worker.js src/polyfill.js
 dist/js/jassub-worker-legacy.js: src/JASSUB.cpp src/worker.js src/polyfill.js
 	mkdir -p dist/js
 	emcc src/JASSUB.cpp $(OCTP_DEPS) \
-	  --pre-js src/polyfill.js \
-		--pre-js src/worker.js \
 		-s WASM=0 \
 		--closure=0 \
 		-s LEGACY_VM_SUPPORT=1 \
