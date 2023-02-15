@@ -53,7 +53,7 @@ build/lib/brotli/configured: lib/brotli $(wildcard $(BASE_DIR)build/patches/brot
 $(DIST_DIR)/lib/libbrotlidec.a: $(DIST_DIR)/lib/libbrotlicommon.a
 $(DIST_DIR)/lib/libbrotlicommon.a: build/lib/brotli/configured
 	cd build/lib/brotli && \
-    $(call CONFIGURE_CMAKE) && \
+	$(call CONFIGURE_CMAKE) && \
 	$(JSO_MAKE) install
 	# Normalise static lib names
 	cd $(DIST_DIR)/lib/ && \
@@ -143,11 +143,6 @@ OCTP_DEPS = \
 	$(DIST_DIR)/lib/libfontconfig.a \
 	$(DIST_DIR)/lib/libass.a
 
-# src/jassub-worker.bc: $(OCTP_DEPS) all-src
-# .PHONY: all-src
-# all-src:
-# 	$(MAKE) -C src all
-
 # Dist Files https://github.com/emscripten-core/emscripten/blob/3.1.24/src/settings.js
 EMCC_COMMON_ARGS = \
 	-s ENVIRONMENT=worker \
@@ -169,9 +164,9 @@ EMCC_COMMON_ARGS = \
 	-flto \
 	-fno-exceptions \
 	-o $@ \
-  -O3
+	-O3
 	# -s STRICT=1 \
-  #--js-opts 0 -O0 -gsource-map 
+	#--js-opts 0 -O0 -gsource-map 
 	#--js-opts 0 -O0 -g3 
 	#--closure 1 \
 	#-s USE_CLOSURE_COMPILER=1 \
@@ -179,7 +174,7 @@ EMCC_COMMON_ARGS = \
 	#--memory-init-file 0
 
 
-dist: dist/js/jassub-worker.js dist/js/jassub-worker-legacy.js
+dist: $(OCTP_DEPS) dist/js/jassub-worker.js dist/js/jassub-worker-legacy.js dist/js/jassub.js
 
 dist/js/jassub-worker.js: src/JASSUB.cpp src/worker.js src/polyfill.js
 	mkdir -p dist/js
@@ -199,9 +194,9 @@ dist/js/jassub-worker-legacy.js: src/JASSUB.cpp src/worker.js src/polyfill.js
 		-s MIN_SAFARI_VERSION=60005 \
 		$(EMCC_COMMON_ARGS)
 
-# dist/js/jassub.js: dist/license/all src/jassub.js
-# 	mkdir -p dist/js
-# 	awk '1 {print "// "$$0}' dist/license/all | cat - src/jassub.js > $@
+dist/js/jassub.js: src/jassub.js
+	mkdir -p dist/js
+	cp src/jassub.js $@
 
 # dist/license/all:
 # 	@#FIXME: allow -j in toplevel Makefile and reintegrate licence extraction into this file
