@@ -10,10 +10,7 @@
     "index.d.ts"
   ],
   "scripts": {
-    "bundle": "vite build",
-    "dev": "vite",
-    "dev-worker": "vite build --watch --config vite-worker.config.ts",
-    "build-worker": "vite build --config vite-worker.config.ts"
+    "bundle": "vite build && node build-worker.js"
   },
   "repository": {
     "type": "git",
@@ -39,6 +36,6 @@
     "rvfc-polyfill": "^1.0.4"
   },
   "devDependencies": {
-    "vite": "^2.9.12"
+    "vite": "^4.1.1"
   }
 }

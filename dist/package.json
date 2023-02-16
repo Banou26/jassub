@@ -1,4 +1,1 @@
-{
-  "name": "jassub",
-  "main": "js/jassub-worker.js"
-}
+{"name":"jassub","main":"js/jassub-worker.js"}
