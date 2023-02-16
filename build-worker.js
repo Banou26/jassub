@@ -1,6 +1,5 @@
-import { writeFile, rm } from 'fs/promises'
-import { build } from 'vite'
-
+const { writeFile } = require('fs').promises
+const { build } = require('vite')
 
 ;(async () => {
   await writeFile('./dist/package.json', JSON.stringify({"name": "jassub","main": "js/jassub-worker.js"}))
@@ -12,7 +11,9 @@ import { build } from 'vite'
         outDir: 'dist',
         lib: {
           fileName: 'jassub-worker',
-          entry: 'src/worker.js'
+          entry: 'src/worker.js',
+          formats: ['es'],
+          fileName: () => `jassub-worker.js`
         }
       }
   })
@@ -26,7 +27,9 @@ import { build } from 'vite'
         outDir: 'dist',
         lib: {
           fileName: 'jassub-worker-legacy',
-          entry: 'src/worker.js'
+          entry: 'src/worker.js',
+          formats: ['es'],
+          fileName: () => `jassub-worker-legacy.js`
         }
       }
   })

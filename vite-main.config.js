@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+const { defineConfig } = require('vite')
 
 export default defineConfig({
   build: {
@@ -7,7 +7,8 @@ export default defineConfig({
     lib: {
       entry: 'src/jassub.js',
       name: 'JASSUB',
-      formats: ['umd', 'es']
+      formats: ['umd', 'es'],
+      fileName: (format) => `jassub.${format}.js`
     }
   }
 })

@@ -3,14 +3,13 @@
   "version": "1.4.0",
   "description": "libass Subtitle Renderer and Parser library for browsers",
   "main": "src/jassub.js",
-  "type": "module",
   "files": [
     "dist/*",
     "src/jassub.js",
     "index.d.ts"
   ],
   "scripts": {
-    "bundle": "vite build && node build-worker.js"
+    "bundle": "vite build --config vite-main.config.js && node build-worker.js"
   },
   "repository": {
     "type": "git",
