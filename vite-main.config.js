@@ -1,6 +1,6 @@
 const { defineConfig } = require('vite')
 
-export default defineConfig({
+module.exports = defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: false,
