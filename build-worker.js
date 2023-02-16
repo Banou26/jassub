@@ -2,7 +2,7 @@ const { writeFile } = require('fs').promises
 const { build } = require('vite')
 
 ;(async () => {
-  await writeFile('./dist/package.json', JSON.stringify({"name": "jassub","main": "js/jassub-worker.js"}))
+  await writeFile('./dist/package.json', JSON.stringify({"name": "jassub-wasm","main": "js/jassub-worker.js"}))
 
   await build({
       build: {
@@ -18,7 +18,7 @@ const { build } = require('vite')
       }
   })
 
-  await writeFile('./dist/package.json', JSON.stringify({"name": "jassub","main": "js/jassub-worker-legacy.js"}))
+  await writeFile('./dist/package.json', JSON.stringify({"name": "jassub-wasm","main": "js/jassub-worker-legacy.js"}))
 
   await build({
       build: {
@@ -33,5 +33,5 @@ const { build } = require('vite')
         }
       }
   })
-  await writeFile('./dist/package.json', JSON.stringify({"name": "jassub","main": "js/jassub-worker.js"}))
+  await writeFile('./dist/package.json', JSON.stringify({"name": "jassub-wasm","main": "js/jassub-worker.js"}))
 })()

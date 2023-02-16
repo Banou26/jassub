@@ -1,7 +1,6 @@
 // @ts-ignore
-import WASMModule from 'jassub'
+import WASMModule from 'jassub-wasm'
 
-/* global Module, HEAPU8, _malloc, buffer */
 const read_ = (url, ab) => {
   const xhr = new XMLHttpRequest()
   xhr.open('GET', url, false)
