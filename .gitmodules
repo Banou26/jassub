@@ -8,11 +8,11 @@
 	ignore = dirty
 [submodule "lib/fontconfig"]
 	path = lib/fontconfig
-	url = https://gitlab.freedesktop.org/fontconfig/fontconfig.git
+	url = https://github.com/pkoshevoy/fontconfig
 	ignore = dirty
 [submodule "lib/freetype"]
 	path = lib/freetype
-	url = https://gitlab.freedesktop.org/freetype/freetype.git
+	url = https://github.com/freetype/freetype
 	ignore = dirty
 [submodule "lib/expat"]
 	path = lib/expat
